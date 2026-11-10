@@ -256,6 +256,11 @@ button:hover,select:hover{border-color:var(--ouro)}
 .esquadrao .vidas{color:#bcd8fb}
 .vidas small{font-size:12px;font-weight:500;color:var(--texto-fraco);margin-left:3px}
 .zerado .av,.zerado .info,.zerado .num{opacity:.45}
+.mini{display:block;height:4px;margin-top:3px;background:rgba(255,255,255,.08);border-radius:2px;overflow:hidden;max-width:220px}
+.mini span{display:block;height:100%;border-radius:2px;transition:width .9s cubic-bezier(.2,.8,.2,1)}
+.candeia .mini span{background:linear-gradient(90deg,var(--sangue-luz),var(--ouro))}
+.esquadrao .mini span{background:linear-gradient(90deg,#1e74d6,var(--azul-luz))}
+.mini.ok span{background:var(--verde)!important}
 
 /* ---------- barra rumo à estrela ---------- */
 .estrela{grid-column:1/-1;margin:6px 0 2px;padding:10px 12px 8px;
@@ -283,22 +288,6 @@ button:hover,select:hover{border-color:var(--ouro)}
 .aviso b{color:var(--ouro-luz)}
 .carregando{text-align:center;padding:50px 0;color:var(--texto-fraco);font-size:18px;letter-spacing:.1em}
 .rodape{margin-top:34px;text-align:center;font-size:14px;color:#5f5544;letter-spacing:.05em;line-height:1.5}
-
-/* ---------- editor de metas ---------- */
-dialog{
-  background:linear-gradient(180deg,#22180c,#0e0a06);color:var(--texto);
-  border:1px solid rgba(201,150,44,.5);border-radius:4px;padding:22px 20px 18px;
-  width:min(420px,92vw);box-shadow:0 30px 80px rgba(0,0,0,.7);
-}
-dialog::backdrop{background:rgba(0,0,0,.65)}
-dialog h2{font-family:Cinzel,serif;font-size:16px;letter-spacing:.14em;margin:0 0 4px;color:var(--ouro-luz)}
-dialog .mesm{font-size:15px;color:var(--texto-fraco);margin:0 0 16px}
-dialog label{display:flex;justify-content:space-between;align-items:center;gap:12px;margin:10px 0;font-size:18px}
-dialog input{width:110px;text-align:right;cursor:text;font-size:20px;padding:8px 10px}
-dialog .nota{font-size:14px;color:var(--texto-fraco);line-height:1.45;margin:14px 0 16px}
-dialog .acoes{display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap}
-dialog .primario{background:linear-gradient(180deg,var(--ouro),var(--ouro-fosco));color:#1a1206;font-weight:700;border-color:var(--ouro-luz)}
-dialog .link{background:none;border:none;color:var(--texto-fraco);text-decoration:underline;padding:8px 4px;margin-right:auto}
 
 #confete{position:fixed;inset:0;pointer-events:none;z-index:50}
 
@@ -391,7 +380,6 @@ body.tv .rodape{display:none}
     <div class="painel">
       <select id="mes" aria-label="Mês"></select>
       <button id="recarregar" type="button">Atualizar</button>
-      <button id="abrirMetas" type="button">⚙ Metas</button>
       <button id="modoTv" type="button">📺 Modo TV</button>
       <button id="sairTv" class="sair-tv" type="button">sair do modo TV</button>
       <span class="selo" id="selo"></span>
@@ -453,21 +441,6 @@ body.tv .rodape{display:none}
   <p class="rodape" id="rodape"></p>
 </div>
 
-<dialog id="dlgMetas">
-  <form method="dialog" id="formMetas">
-    <h2>Metas do mês</h2>
-    <p class="mesm" id="metasMes"></p>
-    <label>Candeia <input type="number" min="0" step="1" inputmode="numeric" id="inMetaC" required></label>
-    <label>Esquadrão de Vendas <input type="number" min="0" step="1" inputmode="numeric" id="inMetaE" required></label>
-    <p class="nota">A meta vale para este mês e para os seguintes, até você mudar de novo.<br>
-      Fica salva <b>neste aparelho</b> — na TV do escritório, ajuste uma vez por lá também.</p>
-    <div class="acoes">
-      <button type="button" class="link" id="metaPadrao">voltar ao padrão</button>
-      <button type="button" id="metaCancelar">Cancelar</button>
-      <button type="submit" class="primario">Salvar</button>
-    </div>
-  </form>
-</dialog>
 
 <canvas id="confete" hidden></canvas>
 
@@ -478,8 +451,9 @@ body.tv .rodape{display:none}
 const SHEET_ID = "1TQfj9iL28uHn5WIFIsfLQIRb7HqLR2TF3IgbbxA4bOk";
 const ABAS = ["Vendas", "Página1", "Sheet1", ""];
 
-// Metas padrão (usadas até você salvar outras pelo botão ⚙ Metas)
-const METAS_PADRAO = { candeia: 120, esquadrao: 80 };
+// Metas: lidas da aba "Metas" da planilha (colunas: vendedor | meta).
+// A meta de cada equipe é a soma das metas dos vendedores dela.
+const ABA_METAS = "Metas";
 
 // Elenco do ranking.
 //  equipe: "candeia" ou "esquadrao"
@@ -489,8 +463,8 @@ const METAS_PADRAO = { candeia: 120, esquadrao: 80 };
 const ELENCO = [
   { id: "adriel",      nome: "Adriel",      equipe: "candeia",   nivel: "Pleno",  foto: "", busca: ["adriel"],
     // certificação estrela: só conta vendas da praça e do período abaixo
-    certificacao: { inicio: "2026-11-15", fim: "2027-04-30", praca: "Minas Gerais", termos: ["mg", "minas gerais"] } },
-  { id: "joao-aguiar", nome: "João Aguiar", equipe: "esquadrao", nivel: "Júnior", foto: "", busca: ["joao aguiar"] },
+    certificacao: { inicio: "2026-11-15", fim: "2027-04-30", praca: "Minas Gerais", termos: ["mg", "minas gerais", "belo horizonte", "bh", "contagem", "betim", "nova lima", "uberlandia", "uberaba", "juiz de fora", "montes claros", "ipatinga", "governador valadares", "divinopolis", "sete lagoas", "pocos de caldas"] } },
+  { id: "joao-aguiar", nome: "João Aguiar", equipe: "esquadrao", nivel: "Júnior", foto: "", busca: ["aguiar"] },
   { id: "levi",        nome: "Levi",        equipe: "esquadrao", nivel: "Júnior", foto: "", busca: ["levi"] },
   { id: "filipe",      nome: "Filipe",      equipe: "esquadrao", nivel: "Júnior", foto: "", busca: ["filipe", "felipe"] },
   { id: "mateus",      nome: "Mateus",      equipe: "esquadrao", nivel: "Júnior", foto: "", busca: ["mateus", "matheus"] },
@@ -627,19 +601,28 @@ function processa(table) {
   }).filter(Boolean);
 }
 
-/* ---------- metas (salvas no aparelho) ---------- */
-const CHAVE_METAS = "arena_metas_v1";
-function lerMetas() { try { return JSON.parse(localStorage.getItem(CHAVE_METAS)) || {}; } catch { return {}; } }
-function gravarMetas(o) { try { localStorage.setItem(CHAVE_METAS, JSON.stringify(o)); return true; } catch { return false; } }
-function metaDe(mes, time) {
-  const todas = lerMetas();
-  const chaves = Object.keys(todas).filter(k => k <= mes).sort();
-  for (let i = chaves.length - 1; i >= 0; i--) {
-    const v = todas[chaves[i]][time];
-    if (typeof v === "number") return v;
+/* ---------- metas (aba "Metas" da planilha) ---------- */
+let METAS = null;   // Map id -> meta; null = aba não encontrada
+async function buscaMetas() {
+  const url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json;responseHandler:__CB__`
+    + `&sheet=${encodeURIComponent(ABA_METAS)}&cachebust=${Date.now()}`;
+  const d = await jsonp(url);
+  if (!d || !d.table) return null;
+  let cols = d.table.cols.map(c => norm(c.label));
+  let linhas = d.table.rows.map(r => r.c);
+  if (cols.every(c => !c) && linhas.length) cols = linhas.shift().map(c => norm(c && (c.f ?? c.v)));
+  const iV = acha(cols, "vendedor", "nome");
+  const iM = acha(cols, "meta");
+  if (iV < 0 || iM < 0) return null;
+  const m = new Map();
+  for (const c of linhas) {
+    if (!c) continue;
+    const id = identifica(norm(c[iV] && (c[iV].f ?? c[iV].v)));
+    if (id) m.set(id, (m.get(id) || 0) + num(c[iM]));
   }
-  return METAS_PADRAO[time];
+  return m;
 }
+const metaPessoa = id => (METAS && METAS.get(id)) || 0;
 
 /* ---------- dias úteis (seg–sex, sem feriados nacionais) ---------- */
 function pascoa(a) {
@@ -772,6 +755,7 @@ function pinta(mes) {
     const s = doMes.get(e.id) || { vidas: 0, comissao: 0 };
     const a = antes ? (antes.get(e.id) || { vidas: 0 }) : null;
     return { ...e, vidas: s.vidas, comissao: s.comissao, delta: a ? s.vidas - a.vidas : null,
+      meta: tudo ? 0 : metaPessoa(e.id),
       ciclo: e.certificacao ? vidasCertificacao(e, mes) : null };
   });
   const ordena = (x, y) => y.vidas - x.vidas || y.comissao - x.comissao || x.nome.localeCompare(y.nome);
@@ -818,7 +802,7 @@ function pinta(mes) {
     const lista = pessoas.filter(p => p.equipe === time).sort(ordena);
     const vidas = lista.reduce((s, v) => s + v.vidas, 0);
     const com = lista.reduce((s, v) => s + v.comissao, 0);
-    const meta = tudo ? 0 : metaDe(mes, time);
+    const meta = lista.reduce((s, v) => s + v.meta, 0);
     const pct = meta ? Math.round(vidas / meta * 100) : 0;
     const deltaTime = antes ? lista.reduce((s, v) => s + v.delta, 0) : null;
 
@@ -857,8 +841,9 @@ function pinta(mes) {
         <span class="info">
           <span class="nome">${esc(v.nome)}</span>
           <span class="sub">${etiqueta(v.nivel)}<span class="comissao">${brl(v.comissao)}</span></span>
+          ${v.meta ? `<span class="mini ${v.vidas >= v.meta ? "ok" : ""}" title="${Math.round(v.vidas / v.meta * 100)}% da meta"><span style="width:${Math.min(100, v.vidas / v.meta * 100)}%"></span></span>` : ""}
         </span>
-        <span class="num"><span class="vidas">${fmt(v.vidas)}<small>vidas</small></span>${seta(v.delta)}</span>
+        <span class="num"><span class="vidas">${fmt(v.vidas)}<small>${v.meta ? `/${fmt(v.meta)}` : ""} vidas</small></span>${seta(v.delta)}</span>
         ${v.certificacao && v.ciclo != null ? barraEstrela(v.ciclo, v.certificacao) : ""}
       </li>`).join("");
 
@@ -898,8 +883,9 @@ async function carrega() {
   $("erro").innerHTML = "";
   if (!VENDAS.length) $("carregando").hidden = false;
   try {
-    const table = await buscaPlanilha();
+    const [table, tMetas] = await Promise.all([buscaPlanilha(), buscaMetas().catch(() => null)]);
     processa(table);
+    METAS = tMetas;
     montaMeses();
     $("carregando").hidden = true;
     pinta($("mes").value);
@@ -913,29 +899,6 @@ async function carrega() {
     }
   }
 }
-
-/* ---------- editor de metas ---------- */
-function mesDasMetas() { return mesTela === "tudo" ? chaveMes(new Date()) : mesTela; }
-$("abrirMetas").addEventListener("click", () => {
-  const m = mesDasMetas();
-  $("metasMes").textContent = nomeMes(m);
-  $("inMetaC").value = metaDe(m, "candeia");
-  $("inMetaE").value = metaDe(m, "esquadrao");
-  $("dlgMetas").showModal();
-});
-$("metaCancelar").addEventListener("click", () => $("dlgMetas").close());
-$("formMetas").addEventListener("submit", () => {
-  const m = mesDasMetas();
-  const todas = lerMetas();
-  todas[m] = { candeia: Math.max(0, Math.round(+$("inMetaC").value || 0)),
-               esquadrao: Math.max(0, Math.round(+$("inMetaE").value || 0)) };
-  if (!gravarMetas(todas)) alert("Este navegador não deixou salvar as metas.");
-  pinta(mesTela);
-});
-$("metaPadrao").addEventListener("click", () => {
-  $("inMetaC").value = METAS_PADRAO.candeia;
-  $("inMetaE").value = METAS_PADRAO.esquadrao;
-});
 
 /* ---------- modo TV ---------- */
 function entraTv(cheia) {
